@@ -12,8 +12,8 @@ namespace Moryx.Resources.Management;
 /// <summary>
 /// Class to build resource proxies at runtime. It also contains a cache for types and instances
 /// </summary>
-[Component(LifeCycle.Singleton, typeof(IResourceTypeController), typeof(IResourceTypeTree))]
-internal class ResourceTypeController : IResourceTypeController, IResourceTypeTree
+[Component(LifeCycle.Singleton, typeof(IResourceTypeController), typeof(IResourceTypeTree), typeof(IResourceTypeTreeExtended))]
+internal class ResourceTypeController : IResourceTypeController, IResourceTypeTreeExtended
 {
     /// <summary>
     /// Container to read the type structure
@@ -44,6 +44,19 @@ internal class ResourceTypeController : IResourceTypeController, IResourceTypeTr
 
     /// <inheritdoc />
     IResourceTypeNode IResourceTypeTree.RootType => RootType;
+
+    /// <inheritdoc />
+    public IResourceTypeNode GetNode(IResource resource)
+    {
+        var instance = resource switch
+        {
+            IResourceProxy proxy => proxy.ProxyTarget ?? throw new ProxyDetachedException(),
+            Resource target => target,
+            _ => null
+        };
+
+        return instance != null && _typeCache.TryGetValue(instance.GetType().FullName, out var node) ? node : null;
+    }
 
     /// <summary>
     /// Start the type controller and build the type tree
@@ -148,7 +161,7 @@ internal class ResourceTypeController : IResourceTypeController, IResourceTypeTr
     public void Destroy(Resource instance)
     {
         // ReSharper disable once AssignNullToNotNullAttribute -> FullName should be not null
-        var linker = _typeCache[instance.ResourceType()];
+        var linker = _typeCache[instance.GetType().FullName];
 
         // Only factory instances need to be destroyed
         if (linker.IsRegistered)
@@ -220,7 +233,7 @@ internal class ResourceTypeController : IResourceTypeController, IResourceTypeTr
             }
 
             // Build a new proxy using Castle.DynamicProxy
-            var interfaces = RelevantInterfaces(_typeCache[instance.ResourceType()]);
+            var interfaces = RelevantInterfaces(_typeCache[instance.GetType().FullName]);
             var proxy = ResourceProxyBuilder.Build(instance, interfaces, this);
             _proxyCache[instance.Id] = proxy;
             return proxy;

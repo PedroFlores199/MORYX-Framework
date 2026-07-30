@@ -85,7 +85,7 @@ internal class ResourceEntityAccessor
         if (entity is null)
         {
             entity = await uow.CreateEntityAsync<ResourceEntity>(instance);
-            entity.Type = instance.ResourceType();
+            entity.Type = instance.GetType().FullName;
         }
 
         // All those checks are necessary since EF change tracker does not recognize equal values as such
